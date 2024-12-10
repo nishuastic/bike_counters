@@ -26,8 +26,17 @@ def get_train_data(path="data/train.parquet"):
     X_df = data.drop([_target_column_name, "bike_count"], axis=1)
     return X_df, y_array
 
+
 def get_test_data(path="data/final_test.parquet"):
     data = pd.read_parquet(path)
     # Sort by date first, so that time based cross-validation would produce correct results
     data = data.sort_values(["date", "counter_name"])
     return data
+
+
+def get_full_train_data(path="updated_A.csv"):
+    data = pd.read_csv(path)
+    # Sort by date first, so that time based cross-validation would produce correct results
+    data = data.sort_values(["date", "counter_id"])
+    X_df = data
+    return X_df
