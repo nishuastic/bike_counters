@@ -224,7 +224,7 @@ def _add_district_name(X, geojson_path="/kaggle/input/arrondissements-geojson/ar
     return X
 
 
-def _merge_weather_data(X, weather_df_path="data/external_data.csv"):
+def _merge_weather_data(X, weather_df_path="/kaggle/input/msdb-2024/external_data.csv"):
 
     X = X.copy()
 
