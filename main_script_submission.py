@@ -43,7 +43,7 @@ from datetime import datetime
 problem_title = "Bike count prediction"
 _target_column_name = "log_bike_count"
 
-def get_train_data(path="data/train.parquet"):
+def get_train_data(path="/kaggle/input/msdb-2024/train.parquet"):
     data = pd.read_parquet(path)
     # Sort by date first, so that time based cross-validation would produce correct results
     data = data.sort_values(["date", "counter_name"])
@@ -291,7 +291,7 @@ datetime_columns
 X_train_split.info()
 
 # %%
-def get_test_data(path="data/final_test.parquet"):
+def get_test_data(path="/kaggle/input/msdb-2024/final_test.parquet"):
     data = pd.read_parquet(path)
     # Sort by date first, so that time based cross-validation would produce correct results
     data = data.sort_values(["date", "counter_name"])
