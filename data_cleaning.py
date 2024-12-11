@@ -129,6 +129,15 @@ def _add_strike(X):
     # Merge with the input DataFrame
     X = X.merge(Strike, on="date", how="left")
     X["Strike"] = X["Strike"].fillna(0).astype(int)
+        "strike": [1] * 16,
+    }
+
+    # Create DataFrame for strikes
+    strike = pd.DataFrame(strike_data)
+
+    # Merge with the input DataFrame
+    X = X.merge(strike, on="date", how="left")
+    X["strike"] = X["strike"].fillna(0).astype(int)
 
     return X
 
@@ -190,6 +199,8 @@ def _add_time_of_day(X):
     # Apply the function to the 'hour' column
     X["TimeOfDay"] = X["hour"].apply(get_time_of_day)
     X["TimeOfDay_name"] = X["hour"].apply(get_TimeOfDay_name)
+    # Apply the function to the 'hour' column
+    X["TimeOfDay"] = X["hour"].apply(get_time_of_day)
 
     return X
 
@@ -338,6 +349,4 @@ def _merge_weather_data(X, weather_df_path="data/external_data.csv"):
         X["n"].fillna(rounded_mean, inplace=True)
 
     return X
-
-
 # %%
