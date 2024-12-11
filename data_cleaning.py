@@ -61,6 +61,8 @@ def _select_columns(X):
         "site_name",
         "coordinates",
         "counter_technical_id",
+        "counter_installation_date",
+        "counter_id",
     ]
     X = X.drop(columns=columns_to_drop, axis=1)
     return X
@@ -85,6 +87,13 @@ def _encode_dates(X):
 
     # Identify holidays
     X["is_holiday"] = X["date"].dt.date.isin(fr_holidays)
+
+    # X['hour_sin'] = np.sin(2 * np.pi * X['hour']/24)
+    # X['hour_cos'] = np.cos(2 * np.pi * X['hour']/24)
+    # X['day_of_week_sin'] = np.sin(2 * np.pi * X['weekday']/7)
+    # X['day_of_week_cos'] = np.cos(2 * np.pi * X['weekday']/7)
+    # X['month_sin'] = np.sin(2 * np.pi * X['month']/12)
+    # X['month_cos'] = np.cos(2 * np.pi * X['month']/12)
 
     return X
 
@@ -111,15 +120,15 @@ def _add_strike(X):
             datetime(2021, 11, 16),
             datetime(2021, 11, 17),
         ],
-        "strike": [1] * 16,
+        "Strike": [1] * 16,
     }
 
     # Create DataFrame for strikes
-    strike = pd.DataFrame(strike_data)
+    Strike = pd.DataFrame(strike_data)
 
     # Merge with the input DataFrame
-    X = X.merge(strike, on="date", how="left")
-    X["strike"] = X["strike"].fillna(0).astype(int)
+    X = X.merge(Strike, on="date", how="left")
+    X["Strike"] = X["Strike"].fillna(0).astype(int)
 
     return X
 
@@ -164,8 +173,23 @@ def _add_time_of_day(X):
         else:
             return 6  # Night
 
+    def get_TimeOfDay_name(hour):
+        if hour > 3 and hour <= 6:
+            return "Early morning 4:00AM - 6:00 AM"
+        if hour > 6 and hour <= 10:
+            return "Morning 7:00AM - 10:00 AM"
+        elif hour > 10 and hour <= 13:
+            return "Middle of the day 11:00 AM - 1:00 PM"
+        elif hour > 13 and hour <= 17:
+            return "Afternoon 2:00 PM - 5:00 PM"
+        elif hour > 17 and hour <= 22:
+            return "Evening 6:00 PM - 10:00 PM"
+        else:
+            return "Night 11:00 PM - 3:00 AM"
+
     # Apply the function to the 'hour' column
     X["TimeOfDay"] = X["hour"].apply(get_time_of_day)
+    X["TimeOfDay_name"] = X["hour"].apply(get_TimeOfDay_name)
 
     return X
 
@@ -174,7 +198,27 @@ def _add_season(X):
     X = X.copy()
 
     # Function to assign seasons for 2020 and 2021
-    def get_season_label(date):
+    def get_season_name(date):
+        if ((date > datetime(2020, 3, 20)) & (date < datetime(2020, 6, 21))) | (
+            (date > datetime(2021, 3, 20)) & (date < datetime(2021, 6, 21))
+        ):
+            return "Spring"
+        if ((date > datetime(2020, 6, 20)) & (date < datetime(2020, 9, 21))) | (
+            (date > datetime(2021, 6, 20)) & (date < datetime(2021, 9, 21))
+        ):
+            return "Summer"
+        if ((date > datetime(2020, 9, 20)) & (date < datetime(2020, 12, 21))) | (
+            (date > datetime(2021, 9, 20)) & (date < datetime(2021, 12, 21))
+        ):
+            return "Fall"
+        if (
+            ((date > datetime(2020, 12, 20)) & (date < datetime(2021, 3, 21)))
+            | ((date > datetime(2019, 12, 31)) & (date < datetime(2020, 3, 21)))
+            | ((date > datetime(2021, 12, 20)) & (date < datetime(2022, 3, 21)))
+        ):
+            return "Winter"
+
+    def get_season(date):
         if ((date > datetime(2020, 3, 20)) & (date < datetime(2020, 6, 21))) | (
             (date > datetime(2021, 3, 20)) & (date < datetime(2021, 6, 21))
         ):
@@ -194,8 +238,8 @@ def _add_season(X):
         ):
             return 4  # Winter
 
-    X["Season"] = X["date"].apply(get_season_label)
-
+    X["Season"] = X["date"].apply(get_season)
+    X["Season_name"] = X["date"].apply(get_season_name)
     return X
 
 
@@ -215,9 +259,85 @@ def _merge_external_data(X):
     return X
 
 
-def erase_date(X):
+def _erase_date(X):
     X = X.copy()
-    return X.drop("date", axis=1)
+    return X.drop(["date"], axis=1)
+
+
+def _add_district_name(X, geojson_path="arrondissements.geojson"):
+
+    arrondissements = gpd.read_file(geojson_path)
+
+    X = X.copy()
+    X["geometry"] = X.apply(
+        lambda row: Point(row["longitude"], row["latitude"]), axis=1
+    )
+    X_geo = gpd.GeoDataFrame(X, geometry="geometry", crs=arrondissements.crs)
+
+    # Perform a spatial join to map latitude/longitude to arrondissement
+    X_geo = gpd.sjoin(X_geo, arrondissements, how="left", predicate="within")
+
+    # Add arrondissement name column
+    X["district"] = X_geo["l_aroff"].fillna("Unknown")  # Replace NaN with "Unknown"
+
+    # Drop the geometry column if not needed
+    X.drop(columns=["geometry"], inplace=True)
+
+    return X
+
+
+def _merge_weather_data(X, weather_df_path="data/external_data.csv"):
+
+    X = X.copy()
+
+    # Load and preprocess weather data
+    weather_df = pd.read_csv(weather_df_path)
+    weather_df["date"] = pd.to_datetime(weather_df["date"]).astype("datetime64[ns]")
+    X["date"] = pd.to_datetime(X["date"]).astype("datetime64[ns]")
+
+    # Preserve original index
+    X["orig_index"] = np.arange(X.shape[0])
+
+    # Perform merge_asof
+    X = pd.merge_asof(
+        X.sort_values("date"),
+        weather_df[
+            [
+                "date",
+                "ff",
+                "pres",
+                "ssfrai",
+                "ht_neige",
+                "rr1",
+                "rr3",
+                "rr6",
+                "rr12",
+                "rr24",
+                "vv",
+                "ww",
+                "n",
+                "t",
+            ]
+        ].sort_values("date"),
+        on="date",
+    )
+
+    # Restore the original order and clean up
+    X = X.sort_values("orig_index")
+    del X["orig_index"]
+
+    # Fill missing values with specific logic
+    X[["ssfrai", "ht_neige"]] = X[["ssfrai", "ht_neige"]].fillna(0)
+    X[["rr1", "rr3", "rr6", "rr12", "rr24", "vv"]] = X[
+        ["rr1", "rr3", "rr6", "rr12", "rr24", "vv"]
+    ].fillna(X[["rr1", "rr3", "rr6", "rr12", "rr24", "vv"]].mean())
+
+    if X["n"].isna().any():
+        mean_value = X["n"].mean(skipna=True)
+        rounded_mean = round(mean_value)
+        X["n"].fillna(rounded_mean, inplace=True)
+
+    return X
 
 
 # %%
