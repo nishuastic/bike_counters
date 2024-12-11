@@ -27,6 +27,8 @@ from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, StandardScaler
 from xgboost import XGBRegressor
 
+import sys
+sys.path.append('/kaggle/usr/lib/data_cleaning/')
 import data_cleaning
 
 
