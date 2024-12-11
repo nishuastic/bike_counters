@@ -1,15 +1,14 @@
 # %%
-from pathlib import Path
-from sklearn.preprocessing import FunctionTransformer
-from sklearn.preprocessing import OneHotEncoder, MinMaxScaler
-import holidays
 from datetime import datetime
-from sklearn.model_selection import TimeSeriesSplit
+from pathlib import Path
 
+import geopandas as gpd
+import holidays
 import numpy as np
 import pandas as pd
-import geopandas as gpd
 from shapely.geometry import Point
+from sklearn.model_selection import TimeSeriesSplit
+from sklearn.preprocessing import FunctionTransformer, MinMaxScaler, OneHotEncoder
 
 # %%
 # Functions from utils.py
@@ -37,7 +36,7 @@ def get_cv(X, y, random_state=0):
         yield train_idx, rng.choice(test_idx, size=len(test_idx) // 3, replace=False)
 
 
-def get_train_data(path="data/train.parquet"):
+def get_train_data(path="/kaggle/input/msdb-2024/train.parquet"):
     data = pd.read_parquet(path)
     # Sort by date first, so that time based cross-validation would produce correct results
     data = data.sort_values(["date", "counter_name"])
@@ -46,7 +45,7 @@ def get_train_data(path="data/train.parquet"):
     return X_df, y_array
 
 
-def get_test_data(path="data/final_test.parquet"):
+def get_test_data(path="/kaggle/input/msdb-2024/final_test.parquet"):
     data = pd.read_parquet(path)
     # Sort by date first, so that time based cross-validation would produce correct results
     data = data.sort_values(["date", "counter_name"])
@@ -61,8 +60,6 @@ def _select_columns(X):
         "site_name",
         "coordinates",
         "counter_technical_id",
-        "counter_installation_date",
-        "counter_id",
     ]
     X = X.drop(columns=columns_to_drop, axis=1)
     return X
@@ -72,28 +69,26 @@ def _encode_dates(X):
     X = X.copy()
 
     X["date"] = pd.to_datetime(X["date"])
-
     X["year"] = X["date"].dt.year
     X["month"] = X["date"].dt.month
     X["day"] = X["date"].dt.day
     X["weekday"] = X["date"].dt.weekday
     X["hour"] = X["date"].dt.hour
+
     # Identify weekends (Saturday = 5, Sunday = 6)
     X["is_weekend"] = X["weekday"].isin([5, 6])
 
     # Get French holidays for all years in the dataset
     years = X["year"].unique()
     fr_holidays = holidays.France(years=years)
-
-    # Identify holidays
     X["is_holiday"] = X["date"].dt.date.isin(fr_holidays)
 
-    # X['hour_sin'] = np.sin(2 * np.pi * X['hour']/24)
-    # X['hour_cos'] = np.cos(2 * np.pi * X['hour']/24)
-    # X['day_of_week_sin'] = np.sin(2 * np.pi * X['weekday']/7)
-    # X['day_of_week_cos'] = np.cos(2 * np.pi * X['weekday']/7)
-    # X['month_sin'] = np.sin(2 * np.pi * X['month']/12)
-    # X['month_cos'] = np.cos(2 * np.pi * X['month']/12)
+    X['hour_sin'] = np.sin(2 * np.pi * X['hour']/24)
+    X['hour_cos'] = np.cos(2 * np.pi * X['hour']/24)
+    X['day_of_week_sin'] = np.sin(2 * np.pi * X['weekday']/7)
+    X['day_of_week_cos'] = np.cos(2 * np.pi * X['weekday']/7)
+    X['month_sin'] = np.sin(2 * np.pi * X['month']/12)
+    X['month_cos'] = np.cos(2 * np.pi * X['month']/12)
 
     return X
 
@@ -120,18 +115,8 @@ def _add_strike(X):
             datetime(2021, 11, 16),
             datetime(2021, 11, 17),
         ],
-        "Strike": [1] * 16,
-    }
-
-    # Create DataFrame for strikes
-    Strike = pd.DataFrame(strike_data)
-
-    # Merge with the input DataFrame
-    X = X.merge(Strike, on="date", how="left")
-    X["Strike"] = X["Strike"].fillna(0).astype(int)
         "strike": [1] * 16,
     }
-
     # Create DataFrame for strikes
     strike = pd.DataFrame(strike_data)
 
@@ -182,23 +167,6 @@ def _add_time_of_day(X):
         else:
             return 6  # Night
 
-    def get_TimeOfDay_name(hour):
-        if hour > 3 and hour <= 6:
-            return "Early morning 4:00AM - 6:00 AM"
-        if hour > 6 and hour <= 10:
-            return "Morning 7:00AM - 10:00 AM"
-        elif hour > 10 and hour <= 13:
-            return "Middle of the day 11:00 AM - 1:00 PM"
-        elif hour > 13 and hour <= 17:
-            return "Afternoon 2:00 PM - 5:00 PM"
-        elif hour > 17 and hour <= 22:
-            return "Evening 6:00 PM - 10:00 PM"
-        else:
-            return "Night 11:00 PM - 3:00 AM"
-
-    # Apply the function to the 'hour' column
-    X["TimeOfDay"] = X["hour"].apply(get_time_of_day)
-    X["TimeOfDay_name"] = X["hour"].apply(get_TimeOfDay_name)
     # Apply the function to the 'hour' column
     X["TimeOfDay"] = X["hour"].apply(get_time_of_day)
 
@@ -209,25 +177,6 @@ def _add_season(X):
     X = X.copy()
 
     # Function to assign seasons for 2020 and 2021
-    def get_season_name(date):
-        if ((date > datetime(2020, 3, 20)) & (date < datetime(2020, 6, 21))) | (
-            (date > datetime(2021, 3, 20)) & (date < datetime(2021, 6, 21))
-        ):
-            return "Spring"
-        if ((date > datetime(2020, 6, 20)) & (date < datetime(2020, 9, 21))) | (
-            (date > datetime(2021, 6, 20)) & (date < datetime(2021, 9, 21))
-        ):
-            return "Summer"
-        if ((date > datetime(2020, 9, 20)) & (date < datetime(2020, 12, 21))) | (
-            (date > datetime(2021, 9, 20)) & (date < datetime(2021, 12, 21))
-        ):
-            return "Fall"
-        if (
-            ((date > datetime(2020, 12, 20)) & (date < datetime(2021, 3, 21)))
-            | ((date > datetime(2019, 12, 31)) & (date < datetime(2020, 3, 21)))
-            | ((date > datetime(2021, 12, 20)) & (date < datetime(2022, 3, 21)))
-        ):
-            return "Winter"
 
     def get_season(date):
         if ((date > datetime(2020, 3, 20)) & (date < datetime(2020, 6, 21))) | (
@@ -250,32 +199,10 @@ def _add_season(X):
             return 4  # Winter
 
     X["Season"] = X["date"].apply(get_season)
-    X["Season_name"] = X["date"].apply(get_season_name)
     return X
 
 
-def _merge_external_data(X):
-    file_path = Path(__file__).parent / "external_data.csv"
-    df_ext = pd.read_csv(file_path, parse_dates=["date"])
-
-    X = X.copy()
-    # When using merge_asof left frame need to be sorted
-    X["orig_index"] = np.arange(X.shape[0])
-    X = pd.merge_asof(
-        X.sort_values("date"), df_ext[["date", "t"]].sort_values("date"), on="date"
-    )
-    # Sort back to the original order
-    X = X.sort_values("orig_index")
-    del X["orig_index"]
-    return X
-
-
-def _erase_date(X):
-    X = X.copy()
-    return X.drop(["date"], axis=1)
-
-
-def _add_district_name(X, geojson_path="arrondissements.geojson"):
+def _add_district_name(X, geojson_path="/kaggle/input/msdb-2024/arrondissements.geojson"):
 
     arrondissements = gpd.read_file(geojson_path)
 
@@ -349,4 +276,11 @@ def _merge_weather_data(X, weather_df_path="data/external_data.csv"):
         X["n"].fillna(rounded_mean, inplace=True)
 
     return X
+
+def _erase_date(X):
+    X = X.copy()
+    datetime_columns = X.select_dtypes(include=["datetime64"]).columns
+    X = X.drop(columns=datetime_columns)
+    return X
+
 # %%
