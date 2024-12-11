@@ -63,41 +63,41 @@ class StackingTransformer(BaseEstimator, TransformerMixin):
 
 # Base models
 rf_model = RandomForestRegressor(
-    n_estimators=149,  # Fewer trees
-    max_depth=30,  # Limit depth
-    min_samples_split=6,
-    min_samples_leaf=4,
+    n_estimators=138,  
+    max_depth=30,  
+    min_samples_split=7,
+    min_samples_leaf=5,
     random_state=42,
     n_jobs=-1,
 )
 lgb_model = LGBMRegressor(
-    random_state=42,
-    num_leaves=183,
-    max_depth=10,
-    learning_rate=0.10718414123590023,
-    n_estimators=179,
-    subsample=0.5260664923912034,
-    colsample_bytree=0.6560004292557168,
-    min_child_samples=74,
-    reg_alpha=5.263751804866324,
-    reg_lambda=8.783868704821826,
+    random_state=1,
+    num_leaves=147,
+    max_depth=16,
+    learning_rate=0.1361461812197095,
+    n_estimators=334,
+    subsample=0.7299032336998241,
+    colsample_bytree=0.6621062618101498,
+    min_child_samples=41,
+    reg_alpha=1.1159867605514609e-05,
+    reg_lambda=0.0053509776216799,
 )
 
 # Meta-model
 xgb_meta_model = XGBRegressor(
     random_state=42,
     verbosity=1,
-    n_estimators=675,
-    max_depth=10,
-    learning_rate=0.13518125330035366,
-    subsample=0.8205993182340949,
-    colsample_bytree=0.5068031953462258,
-    colsample_bylevel=0.8644667494430613,
-    colsample_bynode=0.7972962473395386,
-    gamma=2.545420454736484,
-    min_child_weight=6,
-    reg_alpha=3.080165279678978,
-    reg_lambda=7.357446200895196,
+    n_estimators=345,
+    max_depth=5,
+    learning_rate=0.01018437107715767,
+    subsample=0.5017635950442707,
+    colsample_bytree=0.9060254352670852,
+    colsample_bylevel=0.7877842292177994,
+    colsample_bynode=0.8593906910996038,
+    gamma=4.0171878130437,
+    min_child_weight=10,
+    reg_alpha=0.004082830880590062,
+    reg_lambda=0.00010965007039113828,
 )
 
 # Define encoders and preprocessors
