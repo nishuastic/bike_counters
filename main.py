@@ -1,6 +1,24 @@
 # %%
 import subprocess
 
+subprocess.run(
+    [
+        "pip",
+        "install",
+        "numpy",
+        "pandas",
+        "sklearn",
+        "lightgbm",
+        "xgboost",
+        "geopandas",
+        "shapely",
+        "holidays",
+    ]
+)
+import data_cleaning
+
+# %%
+# import optuna
 # subprocess.run([
 #     "latitude", "longitude", "year", "month", "day", "weekday", "hour",
 #     "is_weekend", "is_holiday", "strike", "lockdown", "TimeOfDay", "Season"
@@ -16,6 +34,18 @@ from datetime import datetime, timedelta
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import (
     FunctionTransformer,
+    OrdinalEncoder,
+    StandardScaler,
+    OneHotEncoder,
+    MinMaxScaler,
+)
+from sklearn.pipeline import make_pipeline
+from sklearn.metrics import mean_squared_error
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.pipeline import Pipeline
+from sklearn.ensemble import RandomForestRegressor
+from lightgbm import LGBMRegressor
+from xgboost import XGBRegressor
     OneHotEncoder,
     OrdinalEncoder,
     StandardScaler,
@@ -33,6 +63,9 @@ X, y = data_cleaning.get_train_data(path="data/train.parquet")
 X_train_split, y_train_split, X_test_split, y_test_split = (
     data_cleaning.train_test_split_temporal(X, y)
 )
+
+# %%
+
 
 # Define encoders and preprocessors
 columns_encoder = FunctionTransformer(data_cleaning._select_columns)
@@ -142,6 +175,63 @@ class StackingTransformer(BaseEstimator, TransformerMixin):
 
 # Base models
 rf_model = RandomForestRegressor(
+    n_estimators=149,  # Fewer trees
+    max_depth=30,  # Limit depth
+    min_samples_split=6,
+    min_samples_leaf=4,
+    random_state=42,
+    n_jobs=-1,
+)
+lgb_model = LGBMRegressor(
+    random_state=42,
+    num_leaves=183,
+    max_depth=10,
+    learning_rate=0.10718414123590023,
+    n_estimators=179,
+    subsample=0.5260664923912034,
+    colsample_bytree=0.6560004292557168,
+    min_child_samples=74,
+    reg_alpha=5.263751804866324,
+    reg_lambda=8.783868704821826,
+)
+
+# Meta-model
+xgb_meta_model = XGBRegressor(
+    random_state=42,
+    num_leaves=183,
+    max_depth=10,
+    learning_rate=0.10718414123590023,
+    n_estimators=179,
+    subsample=0.5260664923912034,
+    colsample_bytree=0.6560004292557168,
+    min_child_samples=74,
+    reg_alpha=5.263751804866324,
+    reg_lambda=8.783868704821826,
+)
+
+# Define encoders and preprocessors
+# columns_encoder = FunctionTransformer(data_cleaning._select_columns)
+date_encoder = FunctionTransformer(data_cleaning._encode_dates)
+strike_encoder = FunctionTransformer(data_cleaning._add_strike)
+# lockdown_encoder = FunctionTransformer(data_cleaning._add_lockdown)
+time_of_day_encoder = FunctionTransformer(data_cleaning._add_time_of_day)
+season_encoder = FunctionTransformer(data_cleaning._add_season)
+# district_encoder = FunctionTransformer(data_cleaning._add_district_name)
+# weather_data_encoder =FunctionTransformer(data_cleaning._merge_weather_data)
+
+erase_date = FunctionTransformer(data_cleaning._erase_date)
+
+ordinal_cols = [
+    "counter_name",
+    "site_id",
+    "site_name",
+    "coordinates",
+    "counter_technical_id",
+    "counter_installation_date",
+    "counter_id",
+    "TimeOfDay_name",
+    "Season_name",
+]
     n_estimators=50, max_depth=10, random_state=42, n_jobs=-1
 )
 lgb_model = LGBMRegressor(random_state=42)
@@ -169,6 +259,20 @@ scale_cols = [
     "hour",
     "is_weekend",
     "is_holiday",
+    "Strike",
+    # "lockdown",
+    "TimeOfDay",
+    "Season",
+    # 'ff', 'pres', 'ssfrai', 'ht_neige', 'rr1',
+    # 'rr3', 'rr6', 'rr12', 'rr24', 'vv',  'n', 't',
+    # 'hour_sin', 'hour_sin', 'day_of_week_sin', 'day_of_week_cos',
+    # 'month_sin', 'month_cos'
+]
+
+# scaler = StandardScaler()
+scaler = MinMaxScaler()
+# ordinal = OrdinalEncoder()
+ordinal = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
     "strike",
     "lockdown",
     "TimeOfDay",
@@ -188,6 +292,14 @@ preprocessor = ColumnTransformer(
 # Pipeline for stacking
 stacking_pipeline = Pipeline(
     steps=[
+        # ("columns_encoder", columns_encoder),
+        ("date_encoder", date_encoder),
+        ("strike_encoder", strike_encoder),
+        # ("lockdown_encoder", lockdown_encoder),
+        ("time_of_day_encoder", time_of_day_encoder),
+        ("season_encoder", season_encoder),
+        # ("district_encoder", district_encoder),
+        # ("weather_data_encoder", weather_data_encoder),
         ("columns_encoder", columns_encoder),
         ("date_encoder", date_encoder),
         ("strike_encoder", strike_encoder),
@@ -218,9 +330,7 @@ final_test_predictions = stacking_pipeline.predict(final_test)
 submission = pd.DataFrame(
     {"id": original_index, "log_bike_count": final_test_predictions.flatten()}
 )
-submission_path = "submission_stacked_pipeline.csv"
+submission_path = "submission.csv"
 submission.to_csv(submission_path, index=False)
-print(f"Submission file saved at: {submission_path}")
-
 
 # %%
