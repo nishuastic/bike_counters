@@ -202,7 +202,7 @@ def _add_season(X):
     return X
 
 
-def _add_district_name(X, geojson_path="/kaggle/input/msdb-2024/arrondissements.geojson"):
+def _add_district_name(X, geojson_path="/kaggle/input/arrondissements-geojson/arrondissements.geojson"):
 
     arrondissements = gpd.read_file(geojson_path)
 
