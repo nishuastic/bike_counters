@@ -39,9 +39,19 @@ import lightgbm as lgb
 from datetime import datetime
 
 # %%
-import utils
+# import utils
+problem_title = "Bike count prediction"
+_target_column_name = "log_bike_count"
 
-X, y = utils.get_train_data()
+def get_train_data(path="data/train.parquet"):
+    data = pd.read_parquet(path)
+    # Sort by date first, so that time based cross-validation would produce correct results
+    data = data.sort_values(["date", "counter_name"])
+    y_array = data[_target_column_name].values
+    X_df = data.drop([_target_column_name, "bike_count"], axis=1)
+    return X_df, y_array
+
+X, y = get_train_data()
 X.head(2)
 
 
@@ -281,7 +291,13 @@ datetime_columns
 X_train_split.info()
 
 # %%
-final_test = utils.get_test_data()
+def get_test_data(path="data/final_test.parquet"):
+    data = pd.read_parquet(path)
+    # Sort by date first, so that time based cross-validation would produce correct results
+    data = data.sort_values(["date", "counter_name"])
+    return data
+
+final_test = get_test_data()
 original_index = final_test.index
 date_encoder = FunctionTransformer(_encode_dates, validate=False)
 final_test = date_encoder.fit_transform(final_test)
