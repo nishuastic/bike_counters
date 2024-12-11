@@ -7,7 +7,7 @@ subprocess.run(
         "install",
         "numpy",
         "pandas",
-        "sklearn",
+        "scikit-learn",
         "lightgbm",
         "xgboost",
         "geopandas",
