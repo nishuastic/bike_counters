@@ -1,4 +1,3 @@
-# %%
 from datetime import datetime
 from pathlib import Path
 
@@ -10,7 +9,6 @@ from shapely.geometry import Point
 from sklearn.model_selection import TimeSeriesSplit
 from sklearn.preprocessing import FunctionTransformer, MinMaxScaler, OneHotEncoder
 
-# %%
 # Functions from utils.py
 problem_title = "Bike count prediction"
 _target_column_name = "log_bike_count"
@@ -82,13 +80,6 @@ def _encode_dates(X):
     years = X["year"].unique()
     fr_holidays = holidays.France(years=years)
     X["is_holiday"] = X["date"].dt.date.isin(fr_holidays)
-
-    X['hour_sin'] = np.sin(2 * np.pi * X['hour']/24)
-    X['hour_cos'] = np.cos(2 * np.pi * X['hour']/24)
-    X['day_of_week_sin'] = np.sin(2 * np.pi * X['weekday']/7)
-    X['day_of_week_cos'] = np.cos(2 * np.pi * X['weekday']/7)
-    X['month_sin'] = np.sin(2 * np.pi * X['month']/12)
-    X['month_cos'] = np.cos(2 * np.pi * X['month']/12)
 
     return X
 
@@ -202,7 +193,9 @@ def _add_season(X):
     return X
 
 
-def _add_district_name(X, geojson_path="/kaggle/input/arrondissements-geojson/arrondissements.geojson"):
+def _add_district_name(
+    X, geojson_path="/kaggle/input/arrondissements-geojson/arrondissements.geojson"
+):
 
     arrondissements = gpd.read_file(geojson_path)
 
@@ -267,8 +260,8 @@ def _merge_weather_data(X, weather_df_path="/kaggle/input/msdb-2024/external_dat
     # Fill missing values with specific logic
     X[["ssfrai", "ht_neige"]] = X[["ssfrai", "ht_neige"]].fillna(0)
     X[["rr1", "rr3", "rr6", "rr12", "rr24", "vv"]] = X[
-        ["rr1", "rr3", "rr6", "rr12", "rr24", "vv"]
-    ].fillna(X[["rr1", "rr3", "rr6", "rr12", "rr24", "vv"]].mean())
+        ["rr1", "rr3", "rr6", "rr12", "vv"]
+    ].fillna(X[["rr1", "rr3", "rr6", "rr12", "vv"]].mean())
 
     if X["n"].isna().any():
         mean_value = X["n"].mean(skipna=True)
@@ -277,10 +270,9 @@ def _merge_weather_data(X, weather_df_path="/kaggle/input/msdb-2024/external_dat
 
     return X
 
+
 def _erase_date(X):
     X = X.copy()
     datetime_columns = X.select_dtypes(include=["datetime64"]).columns
     X = X.drop(columns=datetime_columns)
     return X
-
-# %%

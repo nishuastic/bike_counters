@@ -1,4 +1,3 @@
-# %%
 import subprocess
 
 subprocess.run(
@@ -28,17 +27,15 @@ from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, StandardSc
 from xgboost import XGBRegressor
 
 import sys
-sys.path.append('/kaggle/usr/lib/data_cleaning/')
+
+sys.path.append("/kaggle/usr/lib/data_cleaning/")
 import data_cleaning
 
-
-# %%
 X, y = data_cleaning.get_train_data(path="/kaggle/input/msdb-2024/train.parquet")
 
 X_train_split, y_train_split, X_test_split, y_test_split = (
     data_cleaning.train_test_split_temporal(X, y)
 )
-# %%
 
 
 # Custom transformer for stacking
@@ -63,43 +60,42 @@ class StackingTransformer(BaseEstimator, TransformerMixin):
 
 # Base models
 rf_model = RandomForestRegressor(
-    n_estimators=138,  
-    max_depth=30,  
-    min_samples_split=7,
-    min_samples_leaf=5,
+    n_estimators=90,
+    max_depth=27,
+    min_samples_split=5,
+    min_samples_leaf=2,
     random_state=42,
     n_jobs=-1,
 )
 lgb_model = LGBMRegressor(
     random_state=1,
-    num_leaves=147,
-    max_depth=16,
-    learning_rate=0.1361461812197095,
-    n_estimators=334,
-    subsample=0.7299032336998241,
-    colsample_bytree=0.6621062618101498,
-    min_child_samples=41,
-    reg_alpha=1.1159867605514609e-05,
-    reg_lambda=0.0053509776216799,
+    num_leaves=192,
+    max_depth=13,
+    learning_rate=0.07436527963995643,
+    n_estimators=475,
+    subsample=0.5080506284836919,
+    colsample_bytree=0.5728392728761649,
+    min_child_samples=53,
+    reg_alpha=0.5940178261627549,
+    reg_lambda=3.4178326150733502,
 )
 
 # Meta-model
 xgb_meta_model = XGBRegressor(
     random_state=42,
     verbosity=1,
-    n_estimators=345,
-    max_depth=5,
-    learning_rate=0.01018437107715767,
-    subsample=0.5017635950442707,
-    colsample_bytree=0.9060254352670852,
-    colsample_bylevel=0.7877842292177994,
-    colsample_bynode=0.8593906910996038,
-    gamma=4.0171878130437,
-    min_child_weight=10,
-    reg_alpha=0.004082830880590062,
-    reg_lambda=0.00010965007039113828,
+    n_estimators=425,
+    max_depth=15,
+    learning_rate=0.010243232775566815,
+    subsample=0.8611241400339762,
+    colsample_bytree=0.6339637458866162,
+    colsample_bylevel=0.6517707978638164,
+    colsample_bynode=0.6457651375679931,
+    gamma=0.0003063698929298127,
+    min_child_weight=5,
+    reg_alpha=0.0029023896794441806,
+    reg_lambda=3.955647179874124e-05,
 )
-
 # Define encoders and preprocessors
 columns_encoder = FunctionTransformer(data_cleaning._select_columns)
 date_encoder = FunctionTransformer(data_cleaning._encode_dates)
@@ -108,7 +104,7 @@ lockdown_encoder = FunctionTransformer(data_cleaning._add_lockdown)
 time_of_day_encoder = FunctionTransformer(data_cleaning._add_time_of_day)
 season_encoder = FunctionTransformer(data_cleaning._add_season)
 district_encoder = FunctionTransformer(data_cleaning._add_district_name)
-weather_data_encoder =FunctionTransformer(data_cleaning._merge_weather_data)
+weather_data_encoder = FunctionTransformer(data_cleaning._merge_weather_data)
 
 erase_date = FunctionTransformer(data_cleaning._erase_date)
 
@@ -123,19 +119,23 @@ scale_cols = [
     "hour",
     "is_weekend",
     "is_holiday",
-    "hour_sin",
-    "hour_cos",
-    "day_of_week_sin",
-    "day_of_week_cos",
-    "month_sin",
-    "month_cos",
     "strike",
     "lockdown",
     "TimeOfDay",
     "Season",
-    'ff', 'pres', 'ssfrai', 'ht_neige', 'rr1',
-    'rr3', 'rr6', 'rr12', 'rr24', 'vv', 'n', 't',
+    "ff",
+    "pres",
+    "ssfrai",
+    "ht_neige",
+    "rr1",
+    "rr3",
+    "rr6",
+    "rr12",
+    "vv",
+    "n",
+    "t",
 ]
+ordinal_cols = ["counter_installation_date"]
 
 scaler = StandardScaler()
 onehot = OneHotEncoder(handle_unknown="ignore", sparse_output=False)
@@ -175,7 +175,9 @@ rmse = np.sqrt(mean_squared_error(y_test_split, y_pred))
 print(f"RMSE of Stacking Pipeline: {rmse:.5f}")
 
 # Predict on final test set
-final_test = data_cleaning.get_test_data(path="/kaggle/input/msdb-2024/final_test.parquet")
+final_test = data_cleaning.get_test_data(
+    path="/kaggle/input/msdb-2024/final_test.parquet"
+)
 original_index = final_test.index
 final_test_predictions = stacking_pipeline.predict(final_test)
 
@@ -185,5 +187,3 @@ submission = pd.DataFrame(
 )
 submission_path = "submission.csv"
 submission.to_csv(submission_path, index=False)
-
-# %%
